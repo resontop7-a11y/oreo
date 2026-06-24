@@ -31,8 +31,9 @@ let teamT = [];
 let teamCT = [];
 let matchPlayers = [];
 let matchStats = {};
+let invites = {}; // { ник: { from: 'ник', status: 'pending' } }
 
-// ===== КАРТЫ (БЕЗ BREEZE) =====
+// ===== КАРТЫ =====
 const maps = [
     { id: 'province', name: 'PROVINCE', img: 'https://i.ytimg.com/vi/uqzY5PsLSnw/hqdefault.jpg' },
     { id: 'rust', name: 'RUST', img: 'https://i.ytimg.com/vi/RKgSlXghNDg/hqdefault.jpg' },
@@ -158,12 +159,13 @@ function logout() {
         document.getElementById('input-id').value = '';
         document.getElementById('edit-nick-settings').value = '';
         document.getElementById('edit-id-settings').value = '';
+        partyMembers = [];
         showScreen('screen-register');
     }
 }
 
 // ============================================================
-// ЧАСТЬ 4: ПАТИ
+// ЧАСТЬ 4: ПАТИ И ПРИГЛАШЕНИЯ
 // ============================================================
 
 function renderParty() {
@@ -177,7 +179,7 @@ function renderParty() {
     playerCard.style.borderColor = '#f57c00';
     playerCard.style.borderStyle = 'solid';
     playerCard.innerHTML = `
-        <div class="avatar" style="border:2px solid #f57c00; background:#0d0d0d; display:flex; align-items:center; justify-content:center; font-size:24px; color:#f57c00;">⭐</div>
+        <div class="avatar" style="border:2px solid #f57c00;">⭐</div>
         <div class="nick" style="color:#f57c00;">${currentNick || '—'}</div>
         <div class="elo">${currentElo || 1000} ELO</div>
         <div class="role" style="color:#f57c00;">👑 Вы</div>
@@ -192,9 +194,10 @@ function renderParty() {
         const member = partyMembers[i] || null;
         if (member) {
             card.innerHTML = `
-                <div class="avatar" style="background:#2a2a2a; display:flex; align-items:center; justify-content:center; font-size:20px; color:#666;">👤</div>
+                <div class="avatar" style="background:#2a2a2a; color:#888;">👤</div>
                 <div class="nick">${member.nick}</div>
                 <div class="elo">${member.elo || 1200} ELO</div>
+                <div class="role" style="color:#66bb6a; font-size:9px;">✅ В лобби</div>
             `;
             card.onclick = function() { showToast('👤 ' + member.nick); };
         } else {
@@ -202,81 +205,126 @@ function renderParty() {
                 <div class="plus">+</div>
                 <div class="nick" style="color:#888; font-size:11px;">Пригласить</div>
             `;
-            card.onclick = function() { invitePlayer(); };
+            card.onclick = function() { showInviteModal(); };
         }
         grid.appendChild(card);
     }
 
-    // Кнопка "Играть с пати" — проверяем, что 10 игроков
+    // Кнопка "Играть"
     const controls = document.getElementById('party-controls');
     const totalPlayers = partyMembers.length + 1;
-    const canStart = totalPlayers >= 10;
     controls.innerHTML = `
-        <button class="btn" onclick="startPartyGame()" style="margin-top:10px; ${canStart ? '' : 'opacity:0.5; cursor:not-allowed;'}" ${canStart ? '' : 'disabled'}>
-            ▶ Играть с пати (${totalPlayers} / 10 игроков) ${canStart ? '✅' : '❌'}
+        <button class="btn" onclick="startSearch()" style="margin-top:10px;">
+            ▶ Играть (${totalPlayers} игроков)
         </button>
         <div style="color:#888; font-size:12px; margin-top:4px; text-align:center;">
-            ${canStart ? '✅ Достаточно игроков для старта!' : '❌ Нужно ещё ' + (10 - totalPlayers) + ' игроков'}
+            👥 В лобби: ${totalPlayers} / 10
         </div>
     `;
 }
 
-// ===== ПРИГЛАШЕНИЕ В ПАТИ =====
-function invitePlayer() {
-    const method = confirm('Пригласить через Telegram?\n"OK" — поделиться ссылкой\n"Отмена" — ввести никнейм');
-    
-    if (method) {
-        const shareText = `👥 Присоединяйся к моей пати в Oreo Faceit!\nОткрой бота: https://t.me/Oreo_faceit_bot`;
-        const url = `https://t.me/share/url?url=${encodeURIComponent(shareText)}`;
-        window.open(url, '_blank');
-    } else {
-        const nick = prompt('Введите никнейм игрока для приглашения:');
-        if (!nick) return;
-        
-        if (nick === currentNick) {
-            showToast('⚠️ Это вы!');
-            return;
-        }
-        
-        if (!usedNicks.includes(nick)) {
-            showToast('❌ Игрок не найден. Попросите его зарегистрироваться!');
-            return;
-        }
-        
-        if (partyMembers.length >= 4) {
-            showToast('❌ Пати полная!');
-            return;
-        }
-        
-        partyMembers.push({
-            nick: nick,
-            elo: userElo[nick] || 1000
-        });
-        
-        renderParty();
-        showToast(`✅ ${nick} приглашён в пати!`);
-    }
-}
-
-// ============================================================
-// ЧАСТЬ 5: ПОИСК (ТОЛЬКО 10 ИГРОКОВ)
-// ============================================================
-
-function startPartyGame() {
-    if (isSearching) { showToast('⏳ Поиск уже идёт...'); return; }
-    if (!currentNick) { showToast('❌ Сначала зарегистрируйтесь'); return; }
-    
-    const partyPlayers = partyMembers.map(m => m.nick);
-    partyPlayers.push(currentNick);
-    
-    if (partyPlayers.length < 10) {
-        showToast(`❌ Нужно 10 игроков. Сейчас: ${partyPlayers.length}`);
+// ===== МОДАЛЬНОЕ ОКНО ДЛЯ ПРИГЛАШЕНИЯ =====
+function showInviteModal() {
+    if (partyMembers.length >= 4) {
+        showToast('❌ Лобби полное!');
         return;
     }
     
-    showToast(`👥 Пати (${partyPlayers.length} чел) ищет соперников...`);
-    startSearchWithParty(partyPlayers);
+    const nick = prompt('👤 Введите никнейм игрока для приглашения:');
+    if (!nick) return;
+    
+    if (nick === currentNick) {
+        showToast('⚠️ Это вы!');
+        return;
+    }
+    
+    if (!usedNicks.includes(nick)) {
+        showToast('❌ Игрок не найден. Попросите его зарегистрироваться!');
+        return;
+    }
+    
+    if (partyMembers.some(m => m.nick === nick)) {
+        showToast('⚠️ Игрок уже в лобби!');
+        return;
+    }
+    
+    // Отправляем приглашение
+    sendInvite(nick);
 }
+
+function sendInvite(nick) {
+    // Проверяем, есть ли уже приглашение
+    if (invites[nick] && invites[nick].status === 'pending') {
+        showToast('⏳ Приглашение уже отправлено');
+        return;
+    }
+    
+    // Сохраняем приглашение
+    invites[nick] = {
+        from: currentNick,
+        status: 'pending',
+        timestamp: Date.now()
+    };
+    
+    showToast(`✅ Приглашение отправлено ${nick}!`);
+    
+    // Имитация ответа (в реальном боте здесь будет WebSocket)
+    setTimeout(() => {
+        // Проверяем, не принял ли уже кто-то
+        if (invites[nick] && invites[nick].status === 'pending') {
+            // Игрок принимает приглашение (имитация)
+            const accept = confirm(`🎮 ${nick} принял приглашение! Добавить в лобби?`);
+            if (accept) {
+                acceptInvite(nick);
+            } else {
+                invites[nick].status = 'declined';
+                showToast(`❌ ${nick} отклонил приглашение`);
+            }
+        }
+    }, 3000);
+}
+
+function acceptInvite(nick) {
+    if (partyMembers.length >= 4) {
+        showToast('❌ Лобби полное!');
+        return;
+    }
+    
+    if (partyMembers.some(m => m.nick === nick)) {
+        showToast('⚠️ Игрок уже в лобби');
+        return;
+    }
+    
+    const elo = userElo[nick] || 1000;
+    partyMembers.push({ nick, elo });
+    invites[nick].status = 'accepted';
+    renderParty();
+    showToast(`✅ ${nick} присоединился к лобби!`);
+}
+
+// ===== ПРЯМОЕ ПРИГЛАШЕНИЕ ПО НИКНЕЙМУ (ИЗ ТОПА) =====
+function inviteFromTop(nick) {
+    if (nick === currentNick) {
+        showToast('⚠️ Это вы!');
+        return;
+    }
+    
+    if (partyMembers.some(m => m.nick === nick)) {
+        showToast('⚠️ Игрок уже в лобби!');
+        return;
+    }
+    
+    if (partyMembers.length >= 4) {
+        showToast('❌ Лобби полное!');
+        return;
+    }
+    
+    sendInvite(nick);
+}
+
+// ============================================================
+// ЧАСТЬ 5: ПОИСК ИГРЫ
+// ============================================================
 
 function startSearch() {
     if (isSearching) return;
@@ -293,8 +341,9 @@ function startSearch() {
         }
     }
     
-    if (usedNicks.length < 10) {
-        showToast(`❌ Нужно 10 зарегистрированных игроков. Сейчас: ${usedNicks.length}`);
+    // Проверяем, что есть игроки
+    if (usedNicks.length < 2) {
+        showToast('❌ Нужно минимум 2 игрока для матча');
         return;
     }
     
@@ -302,106 +351,27 @@ function startSearch() {
     matchFound = false;
     searchProgress = 0;
     allPlayers = [];
+    
+    // Собираем всех игроков (пати + рандомные)
+    const partyNicks = partyMembers.map(m => m.nick);
     allPlayers.push(currentNick);
-    
-    const availablePlayers = usedNicks.filter(n => n !== currentNick);
-    const shuffled = shuffleArray([...availablePlayers]);
-    
-    for (let i = 0; i < 9 && i < shuffled.length; i++) {
-        allPlayers.push(shuffled[i]);
-    }
-    
-    if (allPlayers.length < 10) {
-        showToast(`❌ Не хватает игроков. Нужно 10, есть ${allPlayers.length}`);
-        isSearching = false;
-        return;
-    }
-    
-    matchPlayers = allPlayers.map(nick => ({ 
-        nick: nick, 
-        elo: userElo[nick] || 1000, 
-        id: usedIds[usedNicks.indexOf(nick)] || '—' 
-    }));
-    
-    showScreen('screen-search');
-    document.getElementById('search-status-text').textContent = '⏳ Поиск...';
-    document.getElementById('search-status-detail').textContent = 'Игроков: 1 / 10';
-    document.getElementById('search-progress').style.width = '10%';
-    
-    searchInterval = setInterval(() => {
-        searchProgress += Math.random() * 15 + 5;
-        if (searchProgress >= 100) {
-            searchProgress = 100;
-            clearInterval(searchInterval);
-            isSearching = false;
-            matchFound = true;
-            document.getElementById('search-status-text').textContent = '🎯 Матч найден!';
-            document.getElementById('search-status-detail').textContent = 'Подтвердите участие';
-            document.getElementById('search-progress').style.width = '100%';
-            setTimeout(() => {
-                if (confirm('Матч найден! Подтвердить участие?')) {
-                    confirmMatch();
-                } else {
-                    declineMatch();
-                }
-            }, 500);
-            return;
-        }
-        const found = Math.floor(searchProgress / 10) + 1;
-        document.getElementById('search-status-text').textContent = '⏳ Поиск...';
-        document.getElementById('search-status-detail').textContent = `Игроков: ${found} / 10`;
-        document.getElementById('search-progress').style.width = searchProgress + '%';
-    }, 300);
-}
-
-function startSearchWithParty(partyPlayers) {
-    if (isSearching) return;
-    if (mutedPlayers[currentNick]) {
-        const muteTime = mutedPlayers[currentNick];
-        const now = new Date().getTime();
-        if (now - muteTime < 1800000) {
-            const remaining = Math.ceil((1800000 - (now - muteTime)) / 60000);
-            showToast('❌ Вы в муте ещё ' + remaining + ' мин');
-            return;
-        } else {
-            delete mutedPlayers[currentNick];
-        }
-    }
-    
-    isSearching = true;
-    matchFound = false;
-    searchProgress = 0;
-    allPlayers = [...partyPlayers];
-    
-    const availablePlayers = usedNicks.filter(n => !partyPlayers.includes(n));
-    const shuffled = shuffleArray([...availablePlayers]);
-    
-    for (let i = 0; i < (10 - partyPlayers.length) && i < shuffled.length; i++) {
-        allPlayers.push(shuffled[i]);
-    }
-    
-    if (allPlayers.length < 10) {
-        showToast(`❌ Не хватает игроков. Нужно 10, есть ${allPlayers.length}`);
-        isSearching = false;
-        return;
-    }
-    
-    const partySet = new Set(partyPlayers);
-    const bots = allPlayers.filter(p => !partySet.has(p));
-    const shuffledBots = shuffleArray(bots);
-    const partyArray = [...partyPlayers];
-    const teamTArr = [];
-    const teamCTArr = [];
-    let botIndex = 0;
-    
-    partyArray.forEach((p, index) => {
-        if (index % 2 === 0) { teamTArr.push(p); } else { teamCTArr.push(p); }
+    partyNicks.forEach(n => {
+        if (!allPlayers.includes(n)) allPlayers.push(n);
     });
     
-    while (teamTArr.length < 5 && botIndex < shuffledBots.length) { teamTArr.push(shuffledBots[botIndex++]); }
-    while (teamCTArr.length < 5 && botIndex < shuffledBots.length) { teamCTArr.push(shuffledBots[botIndex++]); }
+    // Добавляем рандомных игроков до 10
+    const available = usedNicks.filter(n => !allPlayers.includes(n));
+    const shuffled = shuffleArray([...available]);
+    for (let i = 0; i < 10 - allPlayers.length && i < shuffled.length; i++) {
+        allPlayers.push(shuffled[i]);
+    }
     
-    allPlayers = [...teamTArr, ...teamCTArr];
+    if (allPlayers.length < 2) {
+        showToast('❌ Не хватает игроков для матча');
+        isSearching = false;
+        return;
+    }
+    
     matchPlayers = allPlayers.map(nick => ({ 
         nick: nick, 
         elo: userElo[nick] || 1000, 
@@ -409,8 +379,8 @@ function startSearchWithParty(partyPlayers) {
     }));
     
     showScreen('screen-search');
-    document.getElementById('search-status-text').textContent = '👥 Поиск соперников...';
-    document.getElementById('search-status-detail').textContent = 'Ваша пати: ' + partyPlayers.join(', ');
+    document.getElementById('search-status-text').textContent = '⏳ Поиск игроков...';
+    document.getElementById('search-status-detail').textContent = `Игроков: 1 / ${allPlayers.length}`;
     document.getElementById('search-progress').style.width = '10%';
     
     searchInterval = setInterval(() => {
@@ -421,10 +391,10 @@ function startSearchWithParty(partyPlayers) {
             isSearching = false;
             matchFound = true;
             document.getElementById('search-status-text').textContent = '🎯 Матч найден!';
-            document.getElementById('search-status-detail').textContent = 'Подтвердите участие';
+            document.getElementById('search-status-detail').textContent = `Игроков: ${allPlayers.length}`;
             document.getElementById('search-progress').style.width = '100%';
             setTimeout(() => {
-                if (confirm('Матч найден! Подтвердить участие?')) {
+                if (confirm(`Матч найден! ${allPlayers.length} игроков. Подтвердить участие?`)) {
                     confirmMatch();
                 } else {
                     declineMatch();
@@ -433,8 +403,8 @@ function startSearchWithParty(partyPlayers) {
             return;
         }
         const found = Math.floor(searchProgress / 10) + 1;
-        document.getElementById('search-status-text').textContent = '👥 Поиск соперников...';
-        document.getElementById('search-status-detail').textContent = `Соперников: ${found} / 5`;
+        document.getElementById('search-status-text').textContent = '⏳ Поиск игроков...';
+        document.getElementById('search-status-detail').textContent = `Игроков: ${found} / ${allPlayers.length}`;
         document.getElementById('search-progress').style.width = searchProgress + '%';
     }, 300);
 }
@@ -479,6 +449,7 @@ function declineMatch() {
     showScreen('screen-menu');
 }
 
+// ===== БАН КАРТ (без изменений) =====
 function renderBanScreen() {
     const grid = document.getElementById('ban-grid');
     if (!grid) return;
@@ -655,7 +626,7 @@ function processScreenshot(event) {
 }
 
 // ============================================================
-// ЧАСТЬ 8: ТОП ИГРОКОВ
+// ЧАСТЬ 8: ТОП ИГРОКОВ С ПРИГЛАШЕНИЯМИ
 // ============================================================
 
 function renderTop() {
@@ -680,11 +651,17 @@ function renderTop() {
         else medal = `#${index + 1}`;
         
         const isCurrent = item.nick === currentNick;
+        const isInParty = partyMembers.some(m => m.nick === item.nick);
+        const isInvited = invites[item.nick] && invites[item.nick].status === 'pending';
+        
         html += `
             <div class="top-item" style="${isCurrent ? 'background:#2a2a2a; border-radius:8px; padding:4px 8px;' : ''}">
                 <span class="rank">${medal}</span>
                 <span class="name">${item.nick} ${isCurrent ? '⭐' : ''}</span>
                 <span class="elo">${item.elo} ELO</span>
+                <button onclick="inviteFromTop('${item.nick}')" style="background:#f57c00; border:none; color:#fff; padding:2px 10px; border-radius:12px; font-size:11px; cursor:pointer; ${isCurrent || isInParty || isInvited ? 'opacity:0.5; cursor:not-allowed;' : ''}" ${isCurrent || isInParty || isInvited ? 'disabled' : ''}>
+                    ${isInParty ? '✅' : isInvited ? '⏳' : '➕'}
+                </button>
             </div>
         `;
     });
