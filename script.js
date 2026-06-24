@@ -1,26 +1,22 @@
 // ============================================================
-// JSONBin НАСТРОЙКИ
+// ДАННЫЕ (ХРАНЯТСЯ ЛОКАЛЬНО В БРАУЗЕРЕ)
 // ============================================================
-const JSONBIN_URL = "https://api.jsonbin.io/v3/b/6a3c60c9f5f4af5e292b9e1d";
-const JSONBIN_KEY = "$2a$10$5o6c6vpto8/ow4AnWWIVFuIaIze0NT63d/G/fzFMS3WOPjyPfIKMq";
+let usedNicks = JSON.parse(localStorage.getItem('usedNicks') || '[]');
+let usedIds = JSON.parse(localStorage.getItem('usedIds') || '[]');
+let userElo = JSON.parse(localStorage.getItem('userElo') || '{}');
+let userKills = JSON.parse(localStorage.getItem('userKills') || '{}');
+let userAssists = JSON.parse(localStorage.getItem('userAssists') || '{}');
+let userDeaths = JSON.parse(localStorage.getItem('userDeaths') || '{}');
+let userMatches = JSON.parse(localStorage.getItem('userMatches') || '{}');
 
-// ============================================================
-// ДАННЫЕ
-// ============================================================
-let usedNicks = [];
-let usedIds = [];
-let userElo = {};
-let userKills = {};
-let userAssists = {};
-let userDeaths = {};
-let userMatches = {};
-let currentNick = '';
-let currentId = '';
-let currentElo = 1000;
-let currentKills = 0;
-let currentAssists = 0;
-let currentDeaths = 0;
-let currentMatches = 0;
+let currentNick = localStorage.getItem('currentNick') || '';
+let currentId = localStorage.getItem('currentId') || '';
+let currentElo = parseInt(localStorage.getItem('currentElo')) || 1000;
+let currentKills = parseInt(localStorage.getItem('currentKills')) || 0;
+let currentAssists = parseInt(localStorage.getItem('currentAssists')) || 0;
+let currentDeaths = parseInt(localStorage.getItem('currentDeaths')) || 0;
+let currentMatches = parseInt(localStorage.getItem('currentMatches')) || 0;
+
 let partyMembers = [];
 let searchInterval = null;
 let searchProgress = 0;
@@ -48,88 +44,28 @@ const maps = [
 ];
 
 // ============================================================
-// ЗАГРУЗКА И СОХРАНЕНИЕ
+// СОХРАНЕНИЕ В LOCALSTORAGE
 // ============================================================
-
-async function loadData() {
-    try {
-        const response = await fetch(JSONBIN_URL, {
-            headers: { 'X-Master-Key': JSONBIN_KEY }
-        });
-        const data = await response.json();
-        console.log('📥 Загружены данные:', data);
-        
-        if (data.record) {
-            usedNicks = data.record.usedNicks || [];
-            usedIds = data.record.usedIds || [];
-            userElo = data.record.userElo || {};
-            userKills = data.record.userKills || {};
-            userAssists = data.record.userAssists || {};
-            userDeaths = data.record.userDeaths || {};
-            userMatches = data.record.userMatches || {};
-        }
-        
-        // Если текущий игрок уже есть в базе — обновляем его данные
-        if (currentNick && usedNicks.includes(currentNick)) {
-            const idx = usedNicks.indexOf(currentNick);
-            currentId = usedIds[idx] || currentId;
-            currentElo = userElo[currentNick] || 1000;
-            currentKills = userKills[currentNick] || 0;
-            currentAssists = userAssists[currentNick] || 0;
-            currentDeaths = userDeaths[currentNick] || 0;
-            currentMatches = userMatches[currentNick] || 0;
-            updateProfileUI();
-            updateStatsUI();
-        }
-        
-        renderTop();
-        renderParty();
-    } catch (e) {
-        console.log('❌ Ошибка загрузки данных:', e);
-    }
-}
-
-async function saveData() {
-    try {
-        const data = {
-            usedNicks: usedNicks || [],
-            usedIds: usedIds || [],
-            userElo: userElo || {},
-            userKills: userKills || {},
-            userAssists: userAssists || {},
-            userDeaths: userDeaths || {},
-            userMatches: userMatches || {}
-        };
-        
-        const response = await fetch(JSONBIN_URL, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Master-Key': JSONBIN_KEY
-            },
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        console.log('✅ Данные сохранены:', result);
-        return true;
-    } catch (e) {
-        console.log('❌ Ошибка сохранения данных:', e);
-        return false;
-    }
-}
-
-// ===== ПРИНУДИТЕЛЬНОЕ СОХРАНЕНИЕ ПРИ РЕГИСТРАЦИИ =====
-function forceSaveAndReload() {
-    saveData().then(() => {
-        setTimeout(() => {
-            loadData();
-        }, 1000);
-    });
+function saveAllData() {
+    localStorage.setItem('usedNicks', JSON.stringify(usedNicks));
+    localStorage.setItem('usedIds', JSON.stringify(usedIds));
+    localStorage.setItem('userElo', JSON.stringify(userElo));
+    localStorage.setItem('userKills', JSON.stringify(userKills));
+    localStorage.setItem('userAssists', JSON.stringify(userAssists));
+    localStorage.setItem('userDeaths', JSON.stringify(userDeaths));
+    localStorage.setItem('userMatches', JSON.stringify(userMatches));
+    localStorage.setItem('currentNick', currentNick);
+    localStorage.setItem('currentId', currentId);
+    localStorage.setItem('currentElo', currentElo);
+    localStorage.setItem('currentKills', currentKills);
+    localStorage.setItem('currentAssists', currentAssists);
+    localStorage.setItem('currentDeaths', currentDeaths);
+    localStorage.setItem('currentMatches', currentMatches);
+    console.log('✅ Данные сохранены локально');
 }
 
 // ============================================================
-// TOAST
+// TOAST И ПЕРЕКЛЮЧЕНИЕ ЭКРАНОВ
 // ============================================================
 
 let toastTimer = null;
@@ -179,12 +115,8 @@ function registerUser() {
     currentDeaths = 0;
     currentMatches = 0;
     
+    saveAllData();
     updateProfileUI();
-    showToast('⏳ Сохранение данных...');
-    
-    // Принудительно сохраняем и перезагружаем
-    forceSaveAndReload();
-    
     showScreen('screen-menu');
     showToast('✅ Аккаунт создан!');
 }
@@ -228,7 +160,7 @@ function updateNick() {
     currentNick = newNick;
     document.getElementById('edit-nick-settings').value = '';
     updateProfileUI();
-    saveData();
+    saveAllData();
     showToast('✅ Никнейм изменён на ' + newNick);
 }
 
@@ -242,7 +174,7 @@ function updateId() {
     currentId = newId;
     document.getElementById('edit-id-settings').value = '';
     updateProfileUI();
-    saveData();
+    saveAllData();
     showToast('✅ ID изменён на ' + newId);
 }
 
@@ -340,52 +272,13 @@ function showInviteModal() {
         return;
     }
     
-    sendInvite(nick);
-}
-
-function sendInvite(nick) {
-    if (invites[nick] && invites[nick].status === 'pending') {
-        showToast('⏳ Приглашение уже отправлено');
-        return;
-    }
+    partyMembers.push({
+        nick: nick,
+        elo: userElo[nick] || 1000
+    });
     
-    invites[nick] = {
-        from: currentNick,
-        status: 'pending',
-        timestamp: Date.now()
-    };
-    
-    showToast(`✅ Приглашение отправлено ${nick}!`);
-    
-    setTimeout(() => {
-        if (invites[nick] && invites[nick].status === 'pending') {
-            const accept = confirm(`🎮 ${nick} принял приглашение! Добавить в лобби?`);
-            if (accept) {
-                acceptInvite(nick);
-            } else {
-                invites[nick].status = 'declined';
-                showToast(`❌ ${nick} отклонил приглашение`);
-            }
-        }
-    }, 3000);
-}
-
-function acceptInvite(nick) {
-    if (partyMembers.length >= 4) {
-        showToast('❌ Лобби полное!');
-        return;
-    }
-    
-    if (partyMembers.some(m => m.nick === nick)) {
-        showToast('⚠️ Игрок уже в лобби');
-        return;
-    }
-    
-    const elo = userElo[nick] || 1000;
-    partyMembers.push({ nick, elo });
-    invites[nick].status = 'accepted';
     renderParty();
-    showToast(`✅ ${nick} присоединился к лобби!`);
+    showToast(`✅ ${nick} добавлен в лобби!`);
 }
 
 function inviteFromTop(nick) {
@@ -404,7 +297,13 @@ function inviteFromTop(nick) {
         return;
     }
     
-    sendInvite(nick);
+    partyMembers.push({
+        nick: nick,
+        elo: userElo[nick] || 1000
+    });
+    
+    renderParty();
+    showToast(`✅ ${nick} добавлен в лобби!`);
 }
 
 // ============================================================
@@ -702,7 +601,7 @@ function processScreenshot(event) {
         statusEl.style.color = '#66bb6a';
         updateProfileUI();
         updateStatsUI();
-        saveData();
+        saveAllData();
         showToast('✅ Матч успешно зарегистрирован!');
     }, 2000);
 }
@@ -734,15 +633,14 @@ function renderTop() {
         
         const isCurrent = item.nick === currentNick;
         const isInParty = partyMembers.some(m => m.nick === item.nick);
-        const isInvited = invites[item.nick] && invites[item.nick].status === 'pending';
         
         html += `
             <div class="top-item" style="${isCurrent ? 'background:#2a2a2a; border-radius:8px; padding:4px 8px;' : ''}">
                 <span class="rank">${medal}</span>
                 <span class="name">${item.nick} ${isCurrent ? '⭐' : ''}</span>
                 <span class="elo">${item.elo} ELO</span>
-                <button onclick="inviteFromTop('${item.nick}')" style="background:#f57c00; border:none; color:#fff; padding:2px 10px; border-radius:12px; font-size:11px; cursor:pointer; ${isCurrent || isInParty || isInvited ? 'opacity:0.5; cursor:not-allowed;' : ''}" ${isCurrent || isInParty || isInvited ? 'disabled' : ''}>
-                    ${isInParty ? '✅' : isInvited ? '⏳' : '➕'}
+                <button onclick="inviteFromTop('${item.nick}')" style="background:#f57c00; border:none; color:#fff; padding:2px 10px; border-radius:12px; font-size:11px; cursor:pointer; ${isCurrent || isInParty ? 'opacity:0.5; cursor:not-allowed;' : ''}" ${isCurrent || isInParty ? 'disabled' : ''}>
+                    ${isInParty ? '✅' : '➕'}
                 </button>
             </div>
         `;
@@ -755,9 +653,7 @@ function renderTop() {
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 
-loadData();
-
-// Авто-сохранение каждые 10 секунд
-setInterval(saveData, 10000);
-
+updateProfileUI();
+updateStatsUI();
 renderParty();
+renderTop();
