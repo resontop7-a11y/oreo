@@ -30,14 +30,13 @@ let teamCT = [];
 let matchPlayers = [];
 let matchStats = {};
 
-// ===== КАРТЫ =====
+// ===== КАРТЫ (БЕЗ BREEZE) =====
 const maps = [
     { id: 'province', name: 'PROVINCE', img: 'https://i.ytimg.com/vi/uqzY5PsLSnw/hqdefault.jpg' },
     { id: 'rust', name: 'RUST', img: 'https://i.ytimg.com/vi/RKgSlXghNDg/hqdefault.jpg' },
     { id: 'sakura', name: 'SAKURA', img: 'https://static.wikia.nocookie.net/standoff-2/images/6/6c/%D0%9F%D1%80%D0%B5%D0%B2%D1%8C%D1%8E_%E2%80%94_%D0%9A%D0%B0%D1%80%D1%82%D0%B0_Sakura_0.16.0.png/revision/latest/scale-to-width-down/1200?cb=20241123165040&path-prefix=ru' },
     { id: 'sandstone', name: 'Sandstone', img: 'https://skins.farm/storage/uploads/Q7C9GmFn.jpg' },
-    { id: 'zone9', name: 'Zone 9', img: 'https://static.wikia.nocookie.net/standoff-2/images/4/4d/%D0%9F%D1%80%D0%B5%D0%B2%D1%8C%D1%8E_%E2%80%94_%D0%9A%D0%B0%D1%80%D1%82%D0%B0_Zone_9_0.13.0.png/revision/latest/scale-to-width-down/1200?cb=20241123170815&path-prefix=ru' },
-    { id: 'breeze', name: 'Breeze', img: 'https://static.wikia.nocookie.net/standoff-2/images/2/2e/%D0%9F%D1%80%D0%B5%D0%B2%D1%8C%D1%8E_%E2%80%94_%D0%9A%D0%B0%D1%80%D1%82%D0%B0_Breeze_0.20.0.png/revision/latest/scale-to-width-down/1200?cb=20241122151018&path-prefix=ru' }
+    { id: 'zone9', name: 'Zone 9', img: 'https://static.wikia.nocookie.net/standoff-2/images/4/4d/%D0%9F%D1%80%D0%B5%D0%B2%D1%8C%D1%8E_%E2%80%94_%D0%9A%D0%B0%D1%80%D1%82%D0%B0_Zone_9_0.13.0.png/revision/latest/scale-to-width-down/1200?cb=20241123170815&path-prefix=ru' }
 ];
 
 // ============================================================
@@ -191,7 +190,7 @@ function renderParty() {
                 <div class="plus">+</div>
                 <div class="nick" style="color:#888; font-size:11px;">Пригласить</div>
             `;
-            card.onclick = function() { showToast('📱 Введите никнейм в Telegram'); };
+            card.onclick = function() { invitePlayer(); };
         }
         grid.appendChild(card);
     }
@@ -205,15 +204,62 @@ function renderParty() {
     `;
 }
 
+// ===== ПРИГЛАШЕНИЕ В ПАТИ =====
+function invitePlayer() {
+    const method = confirm('Пригласить через Telegram?\n"OK" — поделиться ссылкой\n"Отмена" — ввести никнейм');
+    
+    if (method) {
+        // Способ 1: Поделиться ссылкой
+        const shareText = `👥 Присоединяйся к моей пати в Oreo Faceit!\nОткрой бота: https://t.me/Oreo_faceit_bot`;
+        const url = `https://t.me/share/url?url=${encodeURIComponent(shareText)}`;
+        window.open(url, '_blank');
+    } else {
+        // Способ 2: Ввести никнейм
+        const nick = prompt('Введите никнейм игрока для приглашения:');
+        if (!nick) return;
+        
+        if (nick === currentNick) {
+            showToast('⚠️ Это вы!');
+            return;
+        }
+        
+        if (!usedNicks.includes(nick)) {
+            showToast('❌ Игрок не найден. Попросите его зарегистрироваться!');
+            return;
+        }
+        
+        if (partyMembers.length >= 4) {
+            showToast('❌ Пати полная!');
+            return;
+        }
+        
+        partyMembers.push({
+            nick: nick,
+            elo: userElo[nick] || 1000
+        });
+        
+        renderParty();
+        showToast(`✅ ${nick} приглашён в пати!`);
+    }
+}
+
 // ============================================================
-// ЧАСТЬ 5: ПОИСК
+// ЧАСТЬ 5: ПОИСК (БЕЗ БОТОВ)
 // ============================================================
 
 function startPartyGame() {
     if (isSearching) { showToast('⏳ Поиск уже идёт...'); return; }
     if (!currentNick) { showToast('❌ Сначала зарегистрируйтесь'); return; }
+    
     const partyPlayers = partyMembers.map(m => m.nick);
     partyPlayers.push(currentNick);
+    
+    // Проверяем, что набралось 10 игроков
+    if (partyPlayers.length < 10) {
+        showToast(`❌ Нужно 10 игроков. Сейчас: ${partyPlayers.length}. Пригласите ещё!`);
+        return;
+    }
+    
     showToast(`👥 Пати (${partyPlayers.length} чел) ищет соперников...`);
     startSearchWithParty(partyPlayers);
 }
@@ -232,25 +278,44 @@ function startSearch() {
             delete mutedPlayers[currentNick];
         }
     }
+    
+    // Проверяем, что зарегистрировано 10 игроков
+    if (usedNicks.length < 10) {
+        showToast(`❌ Нужно 10 зарегистрированных игроков. Сейчас: ${usedNicks.length}`);
+        return;
+    }
+    
     isSearching = true;
     matchFound = false;
     searchProgress = 0;
     allPlayers = [];
     allPlayers.push(currentNick);
-    while (allPlayers.length < 10) {
-        const botName = 'Bot_' + (allPlayers.length + 1);
-        allPlayers.push(botName);
-        userElo[botName] = 1000;
-        userKills[botName] = 0;
-        userAssists[botName] = 0;
-        userDeaths[botName] = 0;
+    
+    // Добавляем только реальных игроков (без ботов)
+    const availablePlayers = usedNicks.filter(n => n !== currentNick);
+    const shuffled = shuffleArray([...availablePlayers]);
+    
+    for (let i = 0; i < 9 && i < shuffled.length; i++) {
+        allPlayers.push(shuffled[i]);
     }
-    allPlayers = shuffleArray(allPlayers);
-    matchPlayers = allPlayers.map(nick => ({ nick: nick, elo: userElo[nick] || 1000, id: usedIds[usedNicks.indexOf(nick)] || '—' }));
+    
+    if (allPlayers.length < 10) {
+        showToast(`❌ Не хватает игроков. Нужно 10, есть ${allPlayers.length}`);
+        isSearching = false;
+        return;
+    }
+    
+    matchPlayers = allPlayers.map(nick => ({ 
+        nick: nick, 
+        elo: userElo[nick] || 1000, 
+        id: usedIds[usedNicks.indexOf(nick)] || '—' 
+    }));
+    
     showScreen('screen-search');
     document.getElementById('search-status-text').textContent = '⏳ Поиск...';
     document.getElementById('search-status-detail').textContent = 'Игроков: 1 / 10';
     document.getElementById('search-progress').style.width = '10%';
+    
     searchInterval = setInterval(() => {
         searchProgress += Math.random() * 15 + 5;
         if (searchProgress >= 100) {
@@ -290,18 +355,26 @@ function startSearchWithParty(partyPlayers) {
             delete mutedPlayers[currentNick];
         }
     }
+    
     isSearching = true;
     matchFound = false;
     searchProgress = 0;
     allPlayers = [...partyPlayers];
-    while (allPlayers.length < 10) {
-        const botName = 'Bot_' + (allPlayers.length + 1);
-        allPlayers.push(botName);
-        userElo[botName] = 1000;
-        userKills[botName] = 0;
-        userAssists[botName] = 0;
-        userDeaths[botName] = 0;
+    
+    // Добавляем только реальных игроков (без ботов)
+    const availablePlayers = usedNicks.filter(n => !partyPlayers.includes(n));
+    const shuffled = shuffleArray([...availablePlayers]);
+    
+    for (let i = 0; i < (10 - partyPlayers.length) && i < shuffled.length; i++) {
+        allPlayers.push(shuffled[i]);
     }
+    
+    if (allPlayers.length < 10) {
+        showToast(`❌ Не хватает игроков. Нужно 10, есть ${allPlayers.length}`);
+        isSearching = false;
+        return;
+    }
+    
     const partySet = new Set(partyPlayers);
     const bots = allPlayers.filter(p => !partySet.has(p));
     const shuffledBots = shuffleArray(bots);
@@ -309,19 +382,26 @@ function startSearchWithParty(partyPlayers) {
     const teamTArr = [];
     const teamCTArr = [];
     let botIndex = 0;
+    
     partyArray.forEach((p, index) => {
         if (index % 2 === 0) { teamTArr.push(p); } else { teamCTArr.push(p); }
     });
+    
     while (teamTArr.length < 5 && botIndex < shuffledBots.length) { teamTArr.push(shuffledBots[botIndex++]); }
     while (teamCTArr.length < 5 && botIndex < shuffledBots.length) { teamCTArr.push(shuffledBots[botIndex++]); }
-    while (teamTArr.length < 5) { teamTArr.push('Bot_' + (teamTArr.length + 1)); }
-    while (teamCTArr.length < 5) { teamCTArr.push('Bot_' + (teamCTArr.length + 1)); }
+    
     allPlayers = [...teamTArr, ...teamCTArr];
-    matchPlayers = allPlayers.map(nick => ({ nick: nick, elo: userElo[nick] || 1000, id: usedIds[usedNicks.indexOf(nick)] || '—' }));
+    matchPlayers = allPlayers.map(nick => ({ 
+        nick: nick, 
+        elo: userElo[nick] || 1000, 
+        id: usedIds[usedNicks.indexOf(nick)] || '—' 
+    }));
+    
     showScreen('screen-search');
     document.getElementById('search-status-text').textContent = '👥 Поиск соперников...';
     document.getElementById('search-status-detail').textContent = 'Ваша пати: ' + partyPlayers.join(', ');
     document.getElementById('search-progress').style.width = '10%';
+    
     searchInterval = setInterval(() => {
         searchProgress += Math.random() * 15 + 5;
         if (searchProgress >= 100) {
@@ -395,6 +475,7 @@ function renderBanScreen() {
     selectedBan = null;
     document.getElementById('ban-confirm-btn').disabled = true;
     const availableMaps = maps.filter(m => !bannedMaps.includes(m.id));
+    
     if (availableMaps.length === 1) {
         document.getElementById('ban-status').textContent = '🎉 Финальная карта определена!';
         document.getElementById('ban-captain').textContent = '👑 Финальная карта';
@@ -409,6 +490,7 @@ function renderBanScreen() {
         setTimeout(() => { showResult(lastMap); }, 1500);
         return;
     }
+    
     const captainIndex = currentCaptain % 2;
     const captain = captainIndex === 0 ? teamT[0] : teamCT[0];
     const teamName = captainIndex === 0 ? '🔴 Террористы' : '🔵 Контр-Террористы';
@@ -417,6 +499,7 @@ function renderBanScreen() {
     document.getElementById('ban-team').textContent = teamName;
     document.getElementById('ban-team').className = `team ${captainIndex === 0 ? 'team-t' : 'team-ct'}`;
     document.getElementById('ban-status').textContent = `${captain.nick}, выберите карту для бана`;
+    
     availableMaps.forEach(map => {
         const card = document.createElement('div');
         card.className = 'ban-card';
