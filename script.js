@@ -1,7 +1,12 @@
 // ============================================================
-// ЧАСТЬ 1: ДАННЫЕ И ПЕРЕМЕННЫЕ
+// JSONBin НАСТРОЙКИ (ТВОИ ДАННЫЕ)
 // ============================================================
+const JSONBIN_URL = "https://api.jsonbin.io/v3/b/6a3c60c9f5f4af5e292b9e1d";
+const JSONBIN_KEY = "$2a$10$5o6c6vpto8/ow4AnWWIVFuIaIze0NT63d/G/fzFMS3WOPjyPfIKMq";
 
+// ============================================================
+// ОСТАЛЬНЫЕ ДАННЫЕ
+// ============================================================
 let usedNicks = [];
 let usedIds = [];
 let userElo = {};
@@ -31,7 +36,7 @@ let teamT = [];
 let teamCT = [];
 let matchPlayers = [];
 let matchStats = {};
-let invites = {}; // { ник: { from: 'ник', status: 'pending' } }
+let invites = {};
 
 // ===== КАРТЫ =====
 const maps = [
@@ -43,7 +48,71 @@ const maps = [
 ];
 
 // ============================================================
-// ЧАСТЬ 2: TOAST И ПЕРЕКЛЮЧЕНИЕ ЭКРАНОВ
+// ЗАГРУЗКА И СОХРАНЕНИЕ ДАННЫХ
+// ============================================================
+
+async function loadData() {
+    try {
+        const response = await fetch(JSONBIN_URL, {
+            headers: { 'X-Master-Key': JSONBIN_KEY }
+        });
+        const data = await response.json();
+        if (data.record) {
+            usedNicks = data.record.usedNicks || [];
+            usedIds = data.record.usedIds || [];
+            userElo = data.record.userElo || {};
+            userKills = data.record.userKills || {};
+            userAssists = data.record.userAssists || {};
+            userDeaths = data.record.userDeaths || {};
+            userMatches = data.record.userMatches || {};
+            
+            if (usedNicks.includes(currentNick)) {
+                const idx = usedNicks.indexOf(currentNick);
+                currentId = usedIds[idx] || currentId;
+                currentElo = userElo[currentNick] || 1000;
+                currentKills = userKills[currentNick] || 0;
+                currentAssists = userAssists[currentNick] || 0;
+                currentDeaths = userDeaths[currentNick] || 0;
+                currentMatches = userMatches[currentNick] || 0;
+                updateProfileUI();
+                updateStatsUI();
+            }
+            
+            renderTop();
+            renderParty();
+        }
+    } catch (e) {
+        console.log('❌ Ошибка загрузки данных:', e);
+    }
+}
+
+async function saveData() {
+    try {
+        const data = {
+            usedNicks,
+            usedIds,
+            userElo,
+            userKills,
+            userAssists,
+            userDeaths,
+            userMatches
+        };
+        await fetch(JSONBIN_URL, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': JSONBIN_KEY
+            },
+            body: JSON.stringify(data)
+        });
+        console.log('✅ Данные сохранены');
+    } catch (e) {
+        console.log('❌ Ошибка сохранения данных:', e);
+    }
+}
+
+// ============================================================
+// TOAST И ПЕРЕКЛЮЧЕНИЕ ЭКРАНОВ
 // ============================================================
 
 let toastTimer = null;
@@ -68,7 +137,7 @@ function showScreen(screenId) {
 }
 
 // ============================================================
-// ЧАСТЬ 3: РЕГИСТРАЦИЯ И ПРОФИЛЬ
+// РЕГИСТРАЦИЯ И ПРОФИЛЬ
 // ============================================================
 
 function registerUser() {
@@ -77,6 +146,7 @@ function registerUser() {
     if (nick === '' || id === '') { showToast('❌ Заполните оба поля'); return; }
     if (usedNicks.includes(nick)) { showToast('❌ Этот никнейм уже занят'); return; }
     if (usedIds.includes(id)) { showToast('❌ Этот ID уже занят'); return; }
+    
     usedNicks.push(nick);
     usedIds.push(id);
     userElo[nick] = 1000;
@@ -91,7 +161,9 @@ function registerUser() {
     currentAssists = 0;
     currentDeaths = 0;
     currentMatches = 0;
+    
     updateProfileUI();
+    saveData();
     showScreen('screen-menu');
     showToast('✅ Аккаунт создан!');
 }
@@ -119,6 +191,7 @@ function updateNick() {
     if (newNick === '') { showToast('❌ Введите новый никнейм'); return; }
     if (newNick === currentNick) { showToast('⚠️ Это ваш текущий никнейм'); return; }
     if (usedNicks.includes(newNick)) { showToast('❌ Этот никнейм уже занят'); return; }
+    
     usedNicks = usedNicks.filter(n => n !== currentNick);
     usedNicks.push(newNick);
     userElo[newNick] = userElo[currentNick] || 1000;
@@ -134,6 +207,7 @@ function updateNick() {
     currentNick = newNick;
     document.getElementById('edit-nick-settings').value = '';
     updateProfileUI();
+    saveData();
     showToast('✅ Никнейм изменён на ' + newNick);
 }
 
@@ -147,6 +221,7 @@ function updateId() {
     currentId = newId;
     document.getElementById('edit-id-settings').value = '';
     updateProfileUI();
+    saveData();
     showToast('✅ ID изменён на ' + newId);
 }
 
@@ -165,7 +240,7 @@ function logout() {
 }
 
 // ============================================================
-// ЧАСТЬ 4: ПАТИ И ПРИГЛАШЕНИЯ
+// ПАТИ И ПРИГЛАШЕНИЯ
 // ============================================================
 
 function renderParty() {
@@ -173,7 +248,6 @@ function renderParty() {
     if (!grid) return;
     grid.innerHTML = '';
 
-    // Первый слот — ВЫ
     const playerCard = document.createElement('div');
     playerCard.className = 'party-card';
     playerCard.style.borderColor = '#f57c00';
@@ -187,7 +261,6 @@ function renderParty() {
     playerCard.onclick = function() { showScreen('screen-profile'); };
     grid.appendChild(playerCard);
 
-    // Остальные 4 слота
     for (let i = 0; i < 4; i++) {
         const card = document.createElement('div');
         card.className = 'party-card';
@@ -210,7 +283,6 @@ function renderParty() {
         grid.appendChild(card);
     }
 
-    // Кнопка "Играть"
     const controls = document.getElementById('party-controls');
     const totalPlayers = partyMembers.length + 1;
     controls.innerHTML = `
@@ -223,7 +295,6 @@ function renderParty() {
     `;
 }
 
-// ===== МОДАЛЬНОЕ ОКНО ДЛЯ ПРИГЛАШЕНИЯ =====
 function showInviteModal() {
     if (partyMembers.length >= 4) {
         showToast('❌ Лобби полное!');
@@ -248,18 +319,15 @@ function showInviteModal() {
         return;
     }
     
-    // Отправляем приглашение
     sendInvite(nick);
 }
 
 function sendInvite(nick) {
-    // Проверяем, есть ли уже приглашение
     if (invites[nick] && invites[nick].status === 'pending') {
         showToast('⏳ Приглашение уже отправлено');
         return;
     }
     
-    // Сохраняем приглашение
     invites[nick] = {
         from: currentNick,
         status: 'pending',
@@ -268,11 +336,8 @@ function sendInvite(nick) {
     
     showToast(`✅ Приглашение отправлено ${nick}!`);
     
-    // Имитация ответа (в реальном боте здесь будет WebSocket)
     setTimeout(() => {
-        // Проверяем, не принял ли уже кто-то
         if (invites[nick] && invites[nick].status === 'pending') {
-            // Игрок принимает приглашение (имитация)
             const accept = confirm(`🎮 ${nick} принял приглашение! Добавить в лобби?`);
             if (accept) {
                 acceptInvite(nick);
@@ -302,7 +367,6 @@ function acceptInvite(nick) {
     showToast(`✅ ${nick} присоединился к лобби!`);
 }
 
-// ===== ПРЯМОЕ ПРИГЛАШЕНИЕ ПО НИКНЕЙМУ (ИЗ ТОПА) =====
 function inviteFromTop(nick) {
     if (nick === currentNick) {
         showToast('⚠️ Это вы!');
@@ -323,7 +387,7 @@ function inviteFromTop(nick) {
 }
 
 // ============================================================
-// ЧАСТЬ 5: ПОИСК ИГРЫ
+// ПОИСК ИГРЫ
 // ============================================================
 
 function startSearch() {
@@ -341,7 +405,6 @@ function startSearch() {
         }
     }
     
-    // Проверяем, что есть игроки
     if (usedNicks.length < 2) {
         showToast('❌ Нужно минимум 2 игрока для матча');
         return;
@@ -352,14 +415,12 @@ function startSearch() {
     searchProgress = 0;
     allPlayers = [];
     
-    // Собираем всех игроков (пати + рандомные)
     const partyNicks = partyMembers.map(m => m.nick);
     allPlayers.push(currentNick);
     partyNicks.forEach(n => {
         if (!allPlayers.includes(n)) allPlayers.push(n);
     });
     
-    // Добавляем рандомных игроков до 10
     const available = usedNicks.filter(n => !allPlayers.includes(n));
     const shuffled = shuffleArray([...available]);
     for (let i = 0; i < 10 - allPlayers.length && i < shuffled.length; i++) {
@@ -425,7 +486,7 @@ function cancelSearch() {
 }
 
 // ============================================================
-// ЧАСТЬ 6: ПОДТВЕРЖДЕНИЕ МАТЧА И БАН КАРТ
+// ПОДТВЕРЖДЕНИЕ МАТЧА И БАН КАРТ
 // ============================================================
 
 function confirmMatch() {
@@ -449,7 +510,6 @@ function declineMatch() {
     showScreen('screen-menu');
 }
 
-// ===== БАН КАРТ (без изменений) =====
 function renderBanScreen() {
     const grid = document.getElementById('ban-grid');
     if (!grid) return;
@@ -510,7 +570,7 @@ function confirmBan() {
 }
 
 // ============================================================
-// ЧАСТЬ 7: РЕЗУЛЬТАТ
+// РЕЗУЛЬТАТ
 // ============================================================
 
 function showResult(finalMap) {
@@ -621,12 +681,13 @@ function processScreenshot(event) {
         statusEl.style.color = '#66bb6a';
         updateProfileUI();
         updateStatsUI();
+        saveData();
         showToast('✅ Матч успешно зарегистрирован!');
     }, 2000);
 }
 
 // ============================================================
-// ЧАСТЬ 8: ТОП ИГРОКОВ С ПРИГЛАШЕНИЯМИ
+// ТОП ИГРОКОВ
 // ============================================================
 
 function renderTop() {
@@ -670,7 +731,13 @@ function renderTop() {
 }
 
 // ============================================================
-// ЧАСТЬ 9: ИНИЦИАЛИЗАЦИЯ
+// ИНИЦИАЛИЗАЦИЯ
 // ============================================================
+
+// Загружаем данные при старте
+loadData();
+
+// Авто-сохранение каждые 30 секунд
+setInterval(saveData, 30000);
 
 renderParty();
