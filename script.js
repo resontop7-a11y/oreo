@@ -8,12 +8,14 @@ let userElo = {};
 let userKills = {};
 let userAssists = {};
 let userDeaths = {};
+let userMatches = {};
 let currentNick = '';
 let currentId = '';
 let currentElo = 1000;
 let currentKills = 0;
 let currentAssists = 0;
 let currentDeaths = 0;
+let currentMatches = 0;
 let partyMembers = [];
 let searchInterval = null;
 let searchProgress = 0;
@@ -61,6 +63,7 @@ function showScreen(screenId) {
     if (screenId === 'screen-ban') renderBanScreen();
     if (screenId === 'screen-stats') updateStatsUI();
     if (screenId === 'screen-profile') updateProfileUI();
+    if (screenId === 'screen-top') renderTop();
 }
 
 // ============================================================
@@ -79,12 +82,14 @@ function registerUser() {
     userKills[nick] = 0;
     userAssists[nick] = 0;
     userDeaths[nick] = 0;
+    userMatches[nick] = 0;
     currentNick = nick;
     currentId = id;
     currentElo = 1000;
     currentKills = 0;
     currentAssists = 0;
     currentDeaths = 0;
+    currentMatches = 0;
     updateProfileUI();
     showScreen('screen-menu');
     showToast('✅ Аккаунт создан!');
@@ -97,6 +102,7 @@ function updateProfileUI() {
     document.getElementById('display-kills-profile').textContent = currentKills || 0;
     document.getElementById('display-assists-profile').textContent = currentAssists || 0;
     document.getElementById('display-deaths-profile').textContent = currentDeaths || 0;
+    document.getElementById('display-matches-profile').textContent = currentMatches || 0;
 }
 
 function updateStatsUI() {
@@ -104,10 +110,11 @@ function updateStatsUI() {
     document.getElementById('stats-kills').textContent = currentKills || 0;
     document.getElementById('stats-assists').textContent = currentAssists || 0;
     document.getElementById('stats-deaths').textContent = currentDeaths || 0;
+    document.getElementById('stats-matches').textContent = currentMatches || 0;
 }
 
 function updateNick() {
-    const newNick = document.getElementById('edit-nick').value.trim();
+    const newNick = document.getElementById('edit-nick-settings').value.trim();
     if (newNick === '') { showToast('❌ Введите новый никнейм'); return; }
     if (newNick === currentNick) { showToast('⚠️ Это ваш текущий никнейм'); return; }
     if (usedNicks.includes(newNick)) { showToast('❌ Этот никнейм уже занят'); return; }
@@ -117,35 +124,40 @@ function updateNick() {
     userKills[newNick] = userKills[currentNick] || 0;
     userAssists[newNick] = userAssists[currentNick] || 0;
     userDeaths[newNick] = userDeaths[currentNick] || 0;
+    userMatches[newNick] = userMatches[currentNick] || 0;
     delete userElo[currentNick];
     delete userKills[currentNick];
     delete userAssists[currentNick];
     delete userDeaths[currentNick];
+    delete userMatches[currentNick];
     currentNick = newNick;
-    document.getElementById('edit-nick').value = '';
+    document.getElementById('edit-nick-settings').value = '';
     updateProfileUI();
     showToast('✅ Никнейм изменён на ' + newNick);
 }
 
 function updateId() {
-    const newId = document.getElementById('edit-id').value.trim();
+    const newId = document.getElementById('edit-id-settings').value.trim();
     if (newId === '') { showToast('❌ Введите новый ID'); return; }
     if (newId === currentId) { showToast('⚠️ Это ваш текущий ID'); return; }
     if (usedIds.includes(newId)) { showToast('❌ Этот ID уже занят'); return; }
     usedIds = usedIds.filter(i => i !== currentId);
     usedIds.push(newId);
     currentId = newId;
-    document.getElementById('edit-id').value = '';
+    document.getElementById('edit-id-settings').value = '';
     updateProfileUI();
     showToast('✅ ID изменён на ' + newId);
 }
+
+function updateNickSettings() { updateNick(); }
+function updateIdSettings() { updateId(); }
 
 function logout() {
     if (confirm('Выйти из аккаунта?')) {
         document.getElementById('input-nick').value = '';
         document.getElementById('input-id').value = '';
-        document.getElementById('edit-nick').value = '';
-        document.getElementById('edit-id').value = '';
+        document.getElementById('edit-nick-settings').value = '';
+        document.getElementById('edit-id-settings').value = '';
         showScreen('screen-register');
     }
 }
@@ -195,12 +207,17 @@ function renderParty() {
         grid.appendChild(card);
     }
 
-    // Кнопка "Играть с пати"
+    // Кнопка "Играть с пати" — проверяем, что 10 игроков
     const controls = document.getElementById('party-controls');
+    const totalPlayers = partyMembers.length + 1;
+    const canStart = totalPlayers >= 10;
     controls.innerHTML = `
-        <button class="btn" onclick="startPartyGame()" style="margin-top:10px;">
-            ▶ Играть с пати (${partyMembers.length + 1} игроков)
+        <button class="btn" onclick="startPartyGame()" style="margin-top:10px; ${canStart ? '' : 'opacity:0.5; cursor:not-allowed;'}" ${canStart ? '' : 'disabled'}>
+            ▶ Играть с пати (${totalPlayers} / 10 игроков) ${canStart ? '✅' : '❌'}
         </button>
+        <div style="color:#888; font-size:12px; margin-top:4px; text-align:center;">
+            ${canStart ? '✅ Достаточно игроков для старта!' : '❌ Нужно ещё ' + (10 - totalPlayers) + ' игроков'}
+        </div>
     `;
 }
 
@@ -209,12 +226,10 @@ function invitePlayer() {
     const method = confirm('Пригласить через Telegram?\n"OK" — поделиться ссылкой\n"Отмена" — ввести никнейм');
     
     if (method) {
-        // Способ 1: Поделиться ссылкой
         const shareText = `👥 Присоединяйся к моей пати в Oreo Faceit!\nОткрой бота: https://t.me/Oreo_faceit_bot`;
         const url = `https://t.me/share/url?url=${encodeURIComponent(shareText)}`;
         window.open(url, '_blank');
     } else {
-        // Способ 2: Ввести никнейм
         const nick = prompt('Введите никнейм игрока для приглашения:');
         if (!nick) return;
         
@@ -244,7 +259,7 @@ function invitePlayer() {
 }
 
 // ============================================================
-// ЧАСТЬ 5: ПОИСК (БЕЗ БОТОВ)
+// ЧАСТЬ 5: ПОИСК (ТОЛЬКО 10 ИГРОКОВ)
 // ============================================================
 
 function startPartyGame() {
@@ -254,9 +269,8 @@ function startPartyGame() {
     const partyPlayers = partyMembers.map(m => m.nick);
     partyPlayers.push(currentNick);
     
-    // Проверяем, что набралось 10 игроков
     if (partyPlayers.length < 10) {
-        showToast(`❌ Нужно 10 игроков. Сейчас: ${partyPlayers.length}. Пригласите ещё!`);
+        showToast(`❌ Нужно 10 игроков. Сейчас: ${partyPlayers.length}`);
         return;
     }
     
@@ -279,7 +293,6 @@ function startSearch() {
         }
     }
     
-    // Проверяем, что зарегистрировано 10 игроков
     if (usedNicks.length < 10) {
         showToast(`❌ Нужно 10 зарегистрированных игроков. Сейчас: ${usedNicks.length}`);
         return;
@@ -291,7 +304,6 @@ function startSearch() {
     allPlayers = [];
     allPlayers.push(currentNick);
     
-    // Добавляем только реальных игроков (без ботов)
     const availablePlayers = usedNicks.filter(n => n !== currentNick);
     const shuffled = shuffleArray([...availablePlayers]);
     
@@ -361,7 +373,6 @@ function startSearchWithParty(partyPlayers) {
     searchProgress = 0;
     allPlayers = [...partyPlayers];
     
-    // Добавляем только реальных игроков (без ботов)
     const availablePlayers = usedNicks.filter(n => !partyPlayers.includes(n));
     const shuffled = shuffleArray([...availablePlayers]);
     
@@ -624,7 +635,13 @@ function processScreenshot(event) {
                 userKills[nick] = (userKills[nick] || 0) + stats[nick].kills;
                 userAssists[nick] = (userAssists[nick] || 0) + stats[nick].assists;
                 userDeaths[nick] = (userDeaths[nick] || 0) + stats[nick].deaths;
-                if (nick === currentNick) { currentKills = userKills[nick]; currentAssists = userAssists[nick]; currentDeaths = userDeaths[nick]; }
+                userMatches[nick] = (userMatches[nick] || 0) + 1;
+                if (nick === currentNick) { 
+                    currentKills = userKills[nick]; 
+                    currentAssists = userAssists[nick]; 
+                    currentDeaths = userDeaths[nick];
+                    currentMatches = userMatches[nick];
+                }
             }
         });
         document.getElementById('result-elo').textContent = eloText;
@@ -638,7 +655,45 @@ function processScreenshot(event) {
 }
 
 // ============================================================
-// ЧАСТЬ 8: ИНИЦИАЛИЗАЦИЯ
+// ЧАСТЬ 8: ТОП ИГРОКОВ
+// ============================================================
+
+function renderTop() {
+    const list = document.getElementById('top-list');
+    if (!list) return;
+    
+    const sorted = usedNicks
+        .map(nick => ({ nick, elo: userElo[nick] || 0 }))
+        .sort((a, b) => b.elo - a.elo);
+    
+    if (sorted.length === 0) {
+        list.innerHTML = '<div style="text-align:center; color:#555; padding:20px;">Нет зарегистрированных игроков</div>';
+        return;
+    }
+    
+    let html = '';
+    sorted.forEach((item, index) => {
+        let medal = '';
+        if (index === 0) medal = '🥇';
+        else if (index === 1) medal = '🥈';
+        else if (index === 2) medal = '🥉';
+        else medal = `#${index + 1}`;
+        
+        const isCurrent = item.nick === currentNick;
+        html += `
+            <div class="top-item" style="${isCurrent ? 'background:#2a2a2a; border-radius:8px; padding:4px 8px;' : ''}">
+                <span class="rank">${medal}</span>
+                <span class="name">${item.nick} ${isCurrent ? '⭐' : ''}</span>
+                <span class="elo">${item.elo} ELO</span>
+            </div>
+        `;
+    });
+    
+    list.innerHTML = html;
+}
+
+// ============================================================
+// ЧАСТЬ 9: ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 
 renderParty();
