@@ -1,11 +1,11 @@
 // ============================================================
-// JSONBin НАСТРОЙКИ (ТВОИ ДАННЫЕ)
+// JSONBin НАСТРОЙКИ
 // ============================================================
 const JSONBIN_URL = "https://api.jsonbin.io/v3/b/6a3c60c9f5f4af5e292b9e1d";
 const JSONBIN_KEY = "$2a$10$5o6c6vpto8/ow4AnWWIVFuIaIze0NT63d/G/fzFMS3WOPjyPfIKMq";
 
 // ============================================================
-// ОСТАЛЬНЫЕ ДАННЫЕ
+// ДАННЫЕ
 // ============================================================
 let usedNicks = [];
 let usedIds = [];
@@ -48,7 +48,7 @@ const maps = [
 ];
 
 // ============================================================
-// ЗАГРУЗКА И СОХРАНЕНИЕ ДАННЫХ
+// ЗАГРУЗКА И СОХРАНЕНИЕ
 // ============================================================
 
 async function loadData() {
@@ -57,6 +57,8 @@ async function loadData() {
             headers: { 'X-Master-Key': JSONBIN_KEY }
         });
         const data = await response.json();
+        console.log('📥 Загружены данные:', data);
+        
         if (data.record) {
             usedNicks = data.record.usedNicks || [];
             usedIds = data.record.usedIds || [];
@@ -65,22 +67,23 @@ async function loadData() {
             userAssists = data.record.userAssists || {};
             userDeaths = data.record.userDeaths || {};
             userMatches = data.record.userMatches || {};
-            
-            if (usedNicks.includes(currentNick)) {
-                const idx = usedNicks.indexOf(currentNick);
-                currentId = usedIds[idx] || currentId;
-                currentElo = userElo[currentNick] || 1000;
-                currentKills = userKills[currentNick] || 0;
-                currentAssists = userAssists[currentNick] || 0;
-                currentDeaths = userDeaths[currentNick] || 0;
-                currentMatches = userMatches[currentNick] || 0;
-                updateProfileUI();
-                updateStatsUI();
-            }
-            
-            renderTop();
-            renderParty();
         }
+        
+        // Если текущий игрок уже есть в базе — обновляем его данные
+        if (currentNick && usedNicks.includes(currentNick)) {
+            const idx = usedNicks.indexOf(currentNick);
+            currentId = usedIds[idx] || currentId;
+            currentElo = userElo[currentNick] || 1000;
+            currentKills = userKills[currentNick] || 0;
+            currentAssists = userAssists[currentNick] || 0;
+            currentDeaths = userDeaths[currentNick] || 0;
+            currentMatches = userMatches[currentNick] || 0;
+            updateProfileUI();
+            updateStatsUI();
+        }
+        
+        renderTop();
+        renderParty();
     } catch (e) {
         console.log('❌ Ошибка загрузки данных:', e);
     }
@@ -89,15 +92,16 @@ async function loadData() {
 async function saveData() {
     try {
         const data = {
-            usedNicks,
-            usedIds,
-            userElo,
-            userKills,
-            userAssists,
-            userDeaths,
-            userMatches
+            usedNicks: usedNicks || [],
+            usedIds: usedIds || [],
+            userElo: userElo || {},
+            userKills: userKills || {},
+            userAssists: userAssists || {},
+            userDeaths: userDeaths || {},
+            userMatches: userMatches || {}
         };
-        await fetch(JSONBIN_URL, {
+        
+        const response = await fetch(JSONBIN_URL, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -105,14 +109,27 @@ async function saveData() {
             },
             body: JSON.stringify(data)
         });
-        console.log('✅ Данные сохранены');
+        
+        const result = await response.json();
+        console.log('✅ Данные сохранены:', result);
+        return true;
     } catch (e) {
         console.log('❌ Ошибка сохранения данных:', e);
+        return false;
     }
 }
 
+// ===== ПРИНУДИТЕЛЬНОЕ СОХРАНЕНИЕ ПРИ РЕГИСТРАЦИИ =====
+function forceSaveAndReload() {
+    saveData().then(() => {
+        setTimeout(() => {
+            loadData();
+        }, 1000);
+    });
+}
+
 // ============================================================
-// TOAST И ПЕРЕКЛЮЧЕНИЕ ЭКРАНОВ
+// TOAST
 // ============================================================
 
 let toastTimer = null;
@@ -137,7 +154,7 @@ function showScreen(screenId) {
 }
 
 // ============================================================
-// РЕГИСТРАЦИЯ И ПРОФИЛЬ
+// РЕГИСТРАЦИЯ
 // ============================================================
 
 function registerUser() {
@@ -163,7 +180,11 @@ function registerUser() {
     currentMatches = 0;
     
     updateProfileUI();
-    saveData();
+    showToast('⏳ Сохранение данных...');
+    
+    // Принудительно сохраняем и перезагружаем
+    forceSaveAndReload();
+    
     showScreen('screen-menu');
     showToast('✅ Аккаунт создан!');
 }
@@ -734,10 +755,9 @@ function renderTop() {
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 
-// Загружаем данные при старте
 loadData();
 
-// Авто-сохранение каждые 30 секунд
-setInterval(saveData, 30000);
+// Авто-сохранение каждые 10 секунд
+setInterval(saveData, 10000);
 
 renderParty();
