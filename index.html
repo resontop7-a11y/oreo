@@ -524,6 +524,41 @@
             color: #ccc;
             margin-bottom: 16px;
         }
+        /* Топ */
+        .top-list {
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid #2a2a2a;
+            margin: 16px 0;
+        }
+        .top-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #2a2a2a;
+            font-size: 14px;
+        }
+        .top-item:last-child {
+            border-bottom: none;
+        }
+        .top-item .rank {
+            color: #f57c00;
+            font-weight: 700;
+            margin-right: 10px;
+        }
+        .top-item .name {
+            flex: 1;
+            color: #fff;
+        }
+        .top-item .elo {
+            color: #f57c00;
+            font-weight: 600;
+        }
+        .top-item .medal {
+            font-size: 18px;
+            margin-right: 6px;
+        }
     </style>
 </head>
 <body>
@@ -559,6 +594,8 @@
                 <div class="btn btn-outline" onclick="showScreen('screen-stats')">📊 Статистика</div>
                 <div class="btn btn-outline" onclick="showScreen('screen-profile')">👤 Профиль</div>
                 <div class="btn btn-outline" onclick="showScreen('screen-party')">👥 Пати</div>
+                <div class="btn btn-outline" onclick="showScreen('screen-settings')">⚙️ Настройки</div>
+                <div class="btn btn-outline" onclick="showScreen('screen-top')">🏆 Топ</div>
                 <div class="btn btn-outline" onclick="logout()" style="grid-column: span 2;">🚪 Выйти</div>
             </div>
             <div style="color:#555; font-size:12px; margin-top:16px;">StandFade • 2026 • Oreo Faceit</div>
@@ -568,7 +605,7 @@
         <div id="screen-profile" class="screen">
             <div class="logo"><svg viewBox="0 0 200 50"><circle cx="28" cy="25" r="16" fill="#f57c00"/><circle cx="28" cy="25" r="8" fill="#0d0d0d"/><circle cx="48" cy="25" r="16" fill="#f57c00"/><circle cx="48" cy="25" r="8" fill="#0d0d0d"/><text x="82" y="34" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="800" fill="#fff">Oreo Faceit</text></svg></div>
             <h1 style="font-size:24px;">👤 Профиль</h1>
-            <div class="tagline" style="border-bottom:none; padding-bottom:0;">управление аккаунтом</div>
+            <div class="tagline" style="border-bottom:none; padding-bottom:0;">твоя статистика</div>
             <div class="profile-card">
                 <div style="margin-bottom:12px;"><h2 style="color:#f57c00; font-weight:400; font-size:18px;">📋 Данные аккаунта</h2></div>
                 <div class="row"><span class="label">👤 Никнейм</span><div class="value"><span id="display-nick-profile">—</span><span class="verify-check" onclick="showToast('Аккаунт подтверждён ✅')"><img src="https://cdn.create.vista.com/api/media/small/481442588/stock-vector-check-marks-tick-marks-accepted-approved-yes-correct-right-choices" alt="✓"/></span></div></div>
@@ -577,10 +614,7 @@
                 <div class="row"><span class="label">🔫 Киллы</span><div class="value"><span id="display-kills-profile">0</span></div></div>
                 <div class="row"><span class="label">🤝 Помощи</span><div class="value"><span id="display-assists-profile">0</span></div></div>
                 <div class="row"><span class="label">💀 Смерти</span><div class="value"><span id="display-deaths-profile">0</span></div></div>
-                <div class="edit-profile">
-                    <div class="row"><input type="text" id="edit-nick" placeholder="Новый никнейм" /><button class="btn-small" onclick="updateNick()">Сменить</button></div>
-                    <div class="row"><input type="text" id="edit-id" placeholder="Новый ID" /><button class="btn-small" onclick="updateId()">Сменить</button></div>
-                </div>
+                <div class="row"><span class="label">🏆 Матчи</span><div class="value"><span id="display-matches-profile">0</span></div></div>
             </div>
             <button class="btn btn-outline" onclick="showScreen('screen-menu')">← Назад в меню</button>
         </div>
@@ -589,7 +623,7 @@
         <div id="screen-party" class="screen">
             <div class="logo"><svg viewBox="0 0 200 50"><circle cx="28" cy="25" r="16" fill="#f57c00"/><circle cx="28" cy="25" r="8" fill="#0d0d0d"/><circle cx="48" cy="25" r="16" fill="#f57c00"/><circle cx="48" cy="25" r="8" fill="#0d0d0d"/><text x="82" y="34" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="800" fill="#fff">Oreo Faceit</text></svg></div>
             <h1 style="font-size:24px;">👥 Пати</h1>
-            <div class="tagline" style="border-bottom:none; padding-bottom:0;">твоя команда</div>
+            <div class="tagline" style="border-bottom:none; padding-bottom:0;">собери команду</div>
             <div class="party-grid" id="party-grid"></div>
             <div id="party-controls"></div>
             <button class="btn btn-outline" onclick="showScreen('screen-menu')">← Назад в меню</button>
@@ -599,11 +633,12 @@
         <div id="screen-stats" class="screen">
             <div class="logo"><svg viewBox="0 0 200 50"><circle cx="28" cy="25" r="16" fill="#f57c00"/><circle cx="28" cy="25" r="8" fill="#0d0d0d"/><circle cx="48" cy="25" r="16" fill="#f57c00"/><circle cx="48" cy="25" r="8" fill="#0d0d0d"/><text x="82" y="34" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="800" fill="#fff">Oreo Faceit</text></svg></div>
             <h1 style="font-size:24px;">📊 Статистика</h1>
-            <div class="tagline" style="border-bottom:none; padding-bottom:0;">твой профиль</div>
+            <div class="tagline" style="border-bottom:none; padding-bottom:0;">твой прогресс</div>
             <div style="background:#1a1a1a; border-radius:16px; padding:20px; border:1px solid #2a2a2a; margin:16px 0; text-align:left;">
                 <div class="row"><span class="label">🔫 Киллы</span><span class="value" id="stats-kills">0</span></div>
                 <div class="row"><span class="label">🤝 Помощи</span><span class="value" id="stats-assists">0</span></div>
                 <div class="row"><span class="label">💀 Смерти</span><span class="value" id="stats-deaths">0</span></div>
+                <div class="row"><span class="label">🏆 Матчи</span><span class="value" id="stats-matches">0</span></div>
                 <div class="row"><span class="label">🏆 Лучшая карта</span><span class="value">?</span></div>
                 <div class="row"><span class="label">🏅 ELO</span><span class="value" id="stats-elo">1000</span></div>
             </div>
@@ -660,6 +695,32 @@
                 <div class="status" id="upload-status">Ожидание загрузки...</div>
             </div>
             <button class="btn btn-outline" onclick="showScreen('screen-menu')">← В меню</button>
+        </div>
+
+        <!-- SETTINGS SCREEN -->
+        <div id="screen-settings" class="screen">
+            <div class="logo"><svg viewBox="0 0 200 50"><circle cx="28" cy="25" r="16" fill="#f57c00"/><circle cx="28" cy="25" r="8" fill="#0d0d0d"/><circle cx="48" cy="25" r="16" fill="#f57c00"/><circle cx="48" cy="25" r="8" fill="#0d0d0d"/><text x="82" y="34" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="800" fill="#fff">Oreo Faceit</text></svg></div>
+            <h1 style="font-size:24px;">⚙️ Настройки</h1>
+            <div class="tagline" style="border-bottom:none; padding-bottom:0;">измени данные</div>
+            <div class="profile-card">
+                <div style="margin-bottom:12px;"><h2 style="color:#f57c00; font-weight:400; font-size:18px;">📝 Редактировать</h2></div>
+                <div class="edit-profile">
+                    <div class="row"><input type="text" id="edit-nick-settings" placeholder="Новый никнейм" /><button class="btn-small" onclick="updateNickSettings()">Сменить</button></div>
+                    <div class="row"><input type="text" id="edit-id-settings" placeholder="Новый ID" /><button class="btn-small" onclick="updateIdSettings()">Сменить</button></div>
+                </div>
+            </div>
+            <button class="btn btn-outline" onclick="showScreen('screen-menu')">← Назад в меню</button>
+        </div>
+
+        <!-- TOP SCREEN -->
+        <div id="screen-top" class="screen">
+            <div class="logo"><svg viewBox="0 0 200 50"><circle cx="28" cy="25" r="16" fill="#f57c00"/><circle cx="28" cy="25" r="8" fill="#0d0d0d"/><circle cx="48" cy="25" r="16" fill="#f57c00"/><circle cx="48" cy="25" r="8" fill="#0d0d0d"/><text x="82" y="34" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="800" fill="#fff">Oreo Faceit</text></svg></div>
+            <h1 style="font-size:24px;">🏆 Топ игроков</h1>
+            <div class="tagline" style="border-bottom:none; padding-bottom:0;">рейтинг по ELO</div>
+            <div class="top-list" id="top-list">
+                <div style="text-align:center; color:#555; padding:20px;">Загрузка...</div>
+            </div>
+            <button class="btn btn-outline" onclick="showScreen('screen-menu')">← Назад в меню</button>
         </div>
     </div>
 
